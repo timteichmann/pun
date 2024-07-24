@@ -1,6 +1,6 @@
 # Maintainer: Tim Teichmann <onlineaccounts@mailbox.org>
 pkgname=pun
-pkgver=<x.y>
+pkgver=1.0
 pkgrel=1
 pkgdesc="Checks for pacman package updates and shows the status in the system tray"
 arch=('any')
@@ -9,7 +9,7 @@ license=('GPLv3')
 depends=('pacman-contrib' 'python-pyqt6' 'python-watchdog')
 makedepends=('python-setuptools')
 source=("https://github.com/timteichmann/$pkgname/archive/refs/tags/$pkgver.tar.gz")
-sha256sums=('<sha256sum x.y.tar.gz>')
+sha256sums=('455513f9dd16e27cae3b580ccd0d70918bb7701ad530bd53ee8dd5935b1654bc')
 
 build() {
 	cd "$pkgname-$pkgver"

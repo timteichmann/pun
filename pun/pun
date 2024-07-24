@@ -23,19 +23,8 @@ This program is free software: you can redistribute it and/or modify
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import os
-from setuptools import setup
+import sys
+from pun.pun import PacmanUpdateNotifier
 
-print(__doc__)
-
-setup(
-    name = "pun",
-    version = "1.0",
-    description = "\n".join(__doc__.split("\n")[3:]).strip(),
-    author = "Tim Teichmann",
-    author_email = "onlineaccounts@mailbox.org",
-    url = "https://github.com/timteichmann/pun/",
-    packages = ["pun"],
-    package_data = {"pun": ["icons/*.png"]},
-    scripts = ["pun/pun"],
-)
+pun = PacmanUpdateNotifier(sys.argv)
+sys.exit(pun.exec())

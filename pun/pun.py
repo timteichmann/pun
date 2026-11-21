@@ -41,7 +41,6 @@ ICON_ERROR = "icons/pun_grey.png"
 
 import os
 import sys
-import time
 import datetime
 
 from PyQt6.QtCore import QFileSystemWatcher, QProcess, QTimer, pyqtSlot

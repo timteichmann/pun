@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=pun
+GenericName=Pacman Update Notifier
+Comment=Checks for pacman package updates and shows the status in the system tray
+Exec=pun
+Icon=pun
+Terminal=false
+Categories=System;Utility;

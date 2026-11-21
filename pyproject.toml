@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pun"
+version = "1.0"
+description = "Checks for pacman package updates and shows the status in the system tray"
+authors = [{ name = "Tim Teichmann", email = "teichmann.dev@mailbox.org" }]
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+dependencies = ["PyQt6"]
+
+[project.urls]
+Homepage = "https://github.com/timteichmann/pun/"
+
+[project.gui-scripts]
+pun = "pun.pun:main"
+
+[tool.setuptools]
+packages = ["pun"]
+
+[tool.setuptools.package-data]
+pun = ["icons/*.png"]

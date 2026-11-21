@@ -186,6 +186,9 @@ class PacmanUpdateNotifier(QApplication):
             self.refresh_pending = False
             self.update()
 
-if __name__ == "__main__":
+def main():
     pun = PacmanUpdateNotifier(sys.argv)
     sys.exit(pun.exec())
+
+if __name__ == "__main__":
+    main()

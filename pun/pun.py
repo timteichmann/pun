@@ -24,7 +24,13 @@ This program is free software: you can redistribute it and/or modify
 """
 
 # Settings:
-MONITOR_PATHS = ["/usr", "/etc/pacman.d"]
+# directories whose contents change when packages are installed, upgraded or
+# removed (local package database) or when the mirror list is replaced
+MONITOR_PATHS = ["/var/lib/pacman/local", "/etc/pacman.d"]
+
+# refresh this many seconds after the last change in MONITOR_PATHS, so that a
+# running pacman transaction is finished before checking again
+MONITOR_DELAY = 5
 
 REFRESH_INTERVAL = 600
 
@@ -37,28 +43,9 @@ import sys
 import time
 import datetime
 
-from PyQt6.QtCore import QProcess, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QFileSystemWatcher, QProcess, QTimer, pyqtSlot
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PyQt6.QtGui import QIcon, QAction
-
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
-
-class WatchDog(FileSystemEventHandler):
-    def __init__(self, callback):
-        # maximum frequency / minimum interval
-        self.interval = datetime.timedelta(seconds=30)
-        self.last_event = datetime.datetime.now() - self.interval
-        self.callback = callback
-
-    def on_modified(self, event):
-        this_event = datetime.datetime.now()
-        # make sure that we have a minium interval of 30s
-        if this_event - self.last_event < self.interval:
-            return
-        else:
-            self.last_event = this_event
-            self.callback()
 
 class UpdateableTrayIcon(QSystemTrayIcon):
     def __init__(self):
@@ -81,10 +68,6 @@ class UpdateableTrayIcon(QSystemTrayIcon):
         self.update_icon(ICON_UPDATES_AVAILABLE)
 
 class PacmanUpdateNotifier(QApplication):
-    # emitted from the watchdog observer thread; Qt delivers it to the main
-    # thread, where it is safe to touch the tray icon
-    refresh_requested = pyqtSignal()
-
     def __init__(self, args):
         super().__init__(args)
         # number of refreshes
@@ -113,13 +96,14 @@ class PacmanUpdateNotifier(QApplication):
 
         self.tray.setContextMenu(self.menu)
 
-        # monitor changes in specified directories
-        self.refresh_requested.connect(self.update)
-        self.watchdog = WatchDog(self.refresh_requested.emit)
-        self.observer = Observer()
-        for path in MONITOR_PATHS:
-            self.observer.schedule(self.watchdog, path=path, recursive=False)
-        self.observer.start()
+        # monitor changes in specified directories; every change restarts the
+        # delay timer, so the refresh happens once the changes have stopped
+        self.monitor_timer = QTimer(self)
+        self.monitor_timer.setSingleShot(True)
+        self.monitor_timer.setInterval(MONITOR_DELAY * 1000)
+        self.monitor_timer.timeout.connect(self.update)
+        self.watcher = QFileSystemWatcher(MONITOR_PATHS, self)
+        self.watcher.directoryChanged.connect(lambda path: self.monitor_timer.start())
 
         # checkupdates runs asynchronously so the event loop stays responsive
         self.process = QProcess(self)
@@ -136,8 +120,9 @@ class PacmanUpdateNotifier(QApplication):
     def terminate(self):
         # stop the refresh timer
         self.timer.stop()
-        # stop the watchdog
-        self.observer.stop()
+        # stop watching for changes
+        self.monitor_timer.stop()
+        self.watcher.directoryChanged.disconnect()
         # abort a running check without scheduling another one
         self.refresh_pending = False
         if self.process.state() != QProcess.ProcessState.NotRunning:

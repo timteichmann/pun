@@ -139,25 +139,25 @@ class PacmanUpdateNotifier(QApplication):
         self.update_action.setText("Refreshing...")
         self.tray.state_updating()
 
-        shell_cmd = "checkupdates | wc -l"
-        process = subprocess.Popen(
-            shell_cmd,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT
-        )
-        output = process.communicate()[0].decode("utf-8").rstrip()
+        now = datetime.datetime.now().strftime("%H:%M:%S")
         try:
-            output = int(output)
-            if output > 0:
+            result = subprocess.run(["checkupdates"], capture_output=True, text=True)
+        except OSError:
+            result = None
+
+        # checkupdates exit codes: 0 = updates available, 2 = no updates,
+        # anything else = failure
+        if result is not None and result.returncode in (0, 2):
+            count = len(result.stdout.splitlines())
+            if count > 0:
                 self.tray.state_updates_available()
-                self.tray.setToolTip("Available update: %i (%s)" % (output, datetime.datetime.now().strftime("%H:%M:%S")))
+                self.tray.setToolTip("Available update: %i (%s)" % (count, now))
             else:
                 self.tray.state_up_to_date()
-                self.tray.setToolTip("Up to date (%s)" % (datetime.datetime.now().strftime("%H:%M:%S")))
-        except:
+                self.tray.setToolTip("Up to date (%s)" % now)
+        else:
             self.tray.state_updating()
-            self.tray.setToolTip("Last refresh failed (%s)" % (datetime.datetime.now().strftime("%H:%M:%S")))
+            self.tray.setToolTip("Last refresh failed (%s)" % now)
 
         self.update_action.setText("Refresh")
 

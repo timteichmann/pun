@@ -1,0 +1,11 @@
+# makepkg
+/src/
+/pkg/
+/pun-repo/
+*.pkg.tar*
+
+# Python
+__pycache__/
+/build/
+/dist/
+*.egg-info/

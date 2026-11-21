@@ -1,22 +1,30 @@
 # Maintainer: Tim Teichmann <teichmann.dev@mailbox.org>
+#
+# Builds the committed HEAD of the git repository this PKGBUILD is in:
+#   git clone https://github.com/timteichmann/pun.git && cd pun && makepkg -si
 pkgname=pun
-pkgver=1.0
+# the version is maintained in pyproject.toml only
+pkgver=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$startdir/pyproject.toml")
 pkgrel=1
 pkgdesc="Checks for pacman package updates and shows the status in the system tray"
 arch=('any')
 url="https://github.com/timteichmann/pun/"
 license=('GPL-3.0-or-later')
-depends=('pacman-contrib' 'python' 'python-pyqt6' 'python-watchdog')
-makedepends=('python-setuptools')
-source=("https://github.com/timteichmann/$pkgname/archive/refs/tags/$pkgver.tar.gz")
-sha256sums=('455513f9dd16e27cae3b580ccd0d70918bb7701ad530bd53ee8dd5935b1654bc')
+depends=('pacman-contrib' 'python' 'python-pyqt6')
+makedepends=('git' 'python-build' 'python-installer' 'python-setuptools' 'python-wheel')
+# not named "pun": makepkg keeps its clone next to this PKGBUILD, where pun/
+# is the Python package
+source=("pun-repo::git+file://$startdir")
+sha256sums=('SKIP')
 
 build() {
-	cd "$pkgname-$pkgver"
-	python setup.py build
+	cd pun-repo
+	python -m build --wheel --no-isolation
 }
 
 package() {
-	cd "$pkgname-$pkgver"
-	python setup.py install --root="$pkgdir" --optimize=1
+	cd pun-repo
+	python -m installer --destdir="$pkgdir" dist/*.whl
+	install -Dm644 pun.desktop "$pkgdir/usr/share/applications/pun.desktop"
+	install -Dm644 pun/icons/pun_green.png "$pkgdir/usr/share/pixmaps/pun.png"
 }

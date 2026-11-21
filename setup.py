@@ -33,7 +33,7 @@ setup(
     version = "1.0",
     description = "\n".join(__doc__.split("\n")[3:]).strip(),
     author = "Tim Teichmann",
-    author_email = "onlineaccounts@mailbox.org",
+    author_email = "teichmann.dev@mailbox.org",
     url = "https://github.com/timteichmann/pun/",
     packages = ["pun"],
     package_data = {"pun": ["icons/*.png"]},

@@ -1,4 +1,4 @@
-# Maintainer: Tim Teichmann <onlineaccounts@mailbox.org>
+# Maintainer: Tim Teichmann <teichmann.dev@mailbox.org>
 pkgname=pun
 pkgver=1.0
 pkgrel=1

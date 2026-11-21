@@ -38,18 +38,12 @@ import subprocess
 import time
 import datetime
 
+from PyQt6.QtCore import QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PyQt6.QtGui import QIcon, QAction
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-
-from threading import Timer
-
-class PerpetualTimer(Timer):
-    def run(self):
-        while not self.finished.wait(self.interval):
-            self.function(*self.args, **self.kwargs)
 
 class WatchDog(FileSystemEventHandler):
     def __init__(self, callback):
@@ -88,13 +82,19 @@ class UpdateableTrayIcon(QSystemTrayIcon):
         self.update_icon(ICON_UPDATES_AVAILABLE)
 
 class PacmanUpdateNotifier(QApplication):
+    # emitted from the watchdog observer thread; Qt delivers it to the main
+    # thread, where it is safe to touch the tray icon
+    refresh_requested = pyqtSignal()
+
     def __init__(self, args):
         super().__init__(args)
         # number of refreshes
         self.n_refresh = 0
 
-        # create an asynchronous timer for regular refreshes
-        self.timer = PerpetualTimer(REFRESH_INTERVAL, self.update)
+        # timer for regular refreshes (runs in the Qt event loop)
+        self.timer = QTimer(self)
+        self.timer.setInterval(REFRESH_INTERVAL * 1000)
+        self.timer.timeout.connect(self.update)
 
         # tray icon
         self.tray = UpdateableTrayIcon()
@@ -115,7 +115,8 @@ class PacmanUpdateNotifier(QApplication):
         self.tray.setContextMenu(self.menu)
 
         # monitor changes in specified directories
-        self.watchdog = WatchDog(self.update)
+        self.refresh_requested.connect(self.update)
+        self.watchdog = WatchDog(self.refresh_requested.emit)
         self.observer = Observer()
         for path in MONITOR_PATHS:
             self.observer.schedule(self.watchdog, path=path, recursive=False)
@@ -127,12 +128,13 @@ class PacmanUpdateNotifier(QApplication):
         self.timer.start()
 
     def terminate(self):
-        # stop the perpetual timer
-        self.timer.cancel()
+        # stop the refresh timer
+        self.timer.stop()
         # stop the watchdog
         self.observer.stop()
         self.quit()
 
+    @pyqtSlot()
     def update(self):
         self.n_refresh += 1
         self.tray.setToolTip("Refreshing...")

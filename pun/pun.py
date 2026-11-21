@@ -90,13 +90,15 @@ class PacmanUpdateNotifier(QApplication):
         # menu
         self.menu = QMenu()
         # add default actions
-        self.quit_action = QAction("Exit")
-        self.menu.addAction(self.quit_action)
-        self.quit_action.triggered.connect(self.terminate)
-
         self.update_action = QAction("Refresh")
         self.menu.addAction(self.update_action)
         self.update_action.triggered.connect(self.update)
+
+        self.menu.addSeparator()
+
+        self.quit_action = QAction("Quit")
+        self.menu.addAction(self.quit_action)
+        self.quit_action.triggered.connect(self.terminate)
 
         self.tray.setContextMenu(self.menu)
 
@@ -158,7 +160,7 @@ class PacmanUpdateNotifier(QApplication):
             count = len(output.splitlines())
             if count > 0:
                 self.tray.state_updates_available()
-                self.tray.setToolTip("Available update: %i (%s)" % (count, now))
+                self.tray.setToolTip("%i update%s available (%s)" % (count, "" if count == 1 else "s", now))
             else:
                 self.tray.state_up_to_date()
                 self.tray.setToolTip("Up to date (%s)" % now)

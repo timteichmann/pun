@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pun"
-version = "1.0"
+version = "1.1"
 description = "Checks for pacman package updates and shows the status in the system tray"
 authors = [{ name = "Tim Teichmann", email = "teichmann.dev@mailbox.org" }]
 license = "GPL-3.0-or-later"

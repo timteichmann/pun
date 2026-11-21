@@ -37,6 +37,7 @@ REFRESH_INTERVAL = 600
 ICON_UP_TO_DATE = "icons/pun_green.png"
 ICON_UPDATING = "icons/pun_orange.png"
 ICON_UPDATES_AVAILABLE = "icons/pun_red.png"
+ICON_ERROR = "icons/pun_grey.png"
 
 import os
 import sys
@@ -66,6 +67,9 @@ class UpdateableTrayIcon(QSystemTrayIcon):
 
     def state_updates_available(self):
         self.update_icon(ICON_UPDATES_AVAILABLE)
+
+    def state_error(self):
+        self.update_icon(ICON_ERROR)
 
 class PacmanUpdateNotifier(QApplication):
     def __init__(self, args):
@@ -171,7 +175,7 @@ class PacmanUpdateNotifier(QApplication):
 
     def check_failed(self):
         now = datetime.datetime.now().strftime("%H:%M:%S")
-        self.tray.state_updating()
+        self.tray.state_error()
         self.tray.setToolTip("Last refresh failed (%s)" % now)
         self.check_done()
 

@@ -34,11 +34,10 @@ ICON_UPDATES_AVAILABLE = "icons/pun_red.png"
 
 import os
 import sys
-import subprocess
 import time
 import datetime
 
-from PyQt6.QtCore import QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QProcess, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PyQt6.QtGui import QIcon, QAction
 
@@ -122,8 +121,15 @@ class PacmanUpdateNotifier(QApplication):
             self.observer.schedule(self.watchdog, path=path, recursive=False)
         self.observer.start()
 
-        # begin with initial refresh
-        self.update()
+        # checkupdates runs asynchronously so the event loop stays responsive
+        self.process = QProcess(self)
+        self.process.finished.connect(self.check_finished)
+        self.process.errorOccurred.connect(self.check_error)
+        # set when a refresh is requested while a check is already running
+        self.refresh_pending = False
+
+        # begin with initial refresh once the event loop is running
+        QTimer.singleShot(0, self.update)
 
         self.timer.start()
 
@@ -132,25 +138,35 @@ class PacmanUpdateNotifier(QApplication):
         self.timer.stop()
         # stop the watchdog
         self.observer.stop()
+        # abort a running check without scheduling another one
+        self.refresh_pending = False
+        if self.process.state() != QProcess.ProcessState.NotRunning:
+            self.process.kill()
+            self.process.waitForFinished(1000)
         self.quit()
 
     @pyqtSlot()
     def update(self):
+        # never run two checks at once; refresh again after the current one
+        if self.process.state() != QProcess.ProcessState.NotRunning:
+            self.refresh_pending = True
+            return
+
         self.n_refresh += 1
         self.tray.setToolTip("Refreshing...")
         self.update_action.setText("Refreshing...")
         self.tray.state_updating()
 
+        self.process.start("checkupdates", [])
+
+    def check_finished(self, exit_code, exit_status):
         now = datetime.datetime.now().strftime("%H:%M:%S")
-        try:
-            result = subprocess.run(["checkupdates"], capture_output=True, text=True)
-        except OSError:
-            result = None
+        output = bytes(self.process.readAllStandardOutput()).decode("utf-8", "replace")
 
         # checkupdates exit codes: 0 = updates available, 2 = no updates,
         # anything else = failure
-        if result is not None and result.returncode in (0, 2):
-            count = len(result.stdout.splitlines())
+        if exit_status == QProcess.ExitStatus.NormalExit and exit_code in (0, 2):
+            count = len(output.splitlines())
             if count > 0:
                 self.tray.state_updates_available()
                 self.tray.setToolTip("Available update: %i (%s)" % (count, now))
@@ -158,10 +174,27 @@ class PacmanUpdateNotifier(QApplication):
                 self.tray.state_up_to_date()
                 self.tray.setToolTip("Up to date (%s)" % now)
         else:
-            self.tray.state_updating()
-            self.tray.setToolTip("Last refresh failed (%s)" % now)
+            self.check_failed()
+            return
 
+        self.check_done()
+
+    def check_error(self, error):
+        # a crashed process also emits finished(); only a failed start doesn't
+        if error == QProcess.ProcessError.FailedToStart:
+            self.check_failed()
+
+    def check_failed(self):
+        now = datetime.datetime.now().strftime("%H:%M:%S")
+        self.tray.state_updating()
+        self.tray.setToolTip("Last refresh failed (%s)" % now)
+        self.check_done()
+
+    def check_done(self):
         self.update_action.setText("Refresh")
+        if self.refresh_pending:
+            self.refresh_pending = False
+            self.update()
 
 if __name__ == "__main__":
     pun = PacmanUpdateNotifier(sys.argv)

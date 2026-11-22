@@ -1,14 +1,15 @@
 # pun – p(acman) u(pdate) n(otifier)
 
 pun shows a small icon in the system tray that tells you whether package
-updates are available for Arch Linux.
+updates are available for Arch Linux. The icon is the Package Muncher, an
+animated pixel-art creature that eats packages:
 
-| Icon   | Meaning                                         |
-|--------|-------------------------------------------------|
-| green  | the system is up to date                        |
-| red    | updates are available (the tooltip says how many) |
-| orange | checking for updates                            |
-| grey   | the last check failed                           |
+| Icon                                       | Meaning                                    |
+|--------------------------------------------|--------------------------------------------|
+| orange, chomping through a row of parcels  | checking for updates                       |
+| red, drooling at a parcel with a number    | updates are available; the number says how many ("!!" for 100 or more) |
+| green, resting with a full belly           | the system is up to date                   |
+| grey, choking on a parcel                  | the last check failed                      |
 
 pun uses `checkupdates` from `pacman-contrib`, so it never touches the
 system's sync databases. It checks every 10 minutes, on demand via the

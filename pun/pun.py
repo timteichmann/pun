@@ -34,41 +34,87 @@ MONITOR_DELAY = 5
 
 REFRESH_INTERVAL = 600
 
-ICON_UP_TO_DATE = "icons/pun_green.png"
-ICON_UPDATING = "icons/pun_orange.png"
-ICON_UPDATES_AVAILABLE = "icons/pun_red.png"
-ICON_ERROR = "icons/pun_grey.png"
+# icon sizes to provide; the pixel art is scaled by whole numbers and centred,
+# so it stays sharp at every size
+ICON_SIZES = [16, 20, 22, 24, 32, 40, 44, 48, 64, 96, 128, 256]
 
-import os
 import sys
 import datetime
 
-from PyQt6.QtCore import QFileSystemWatcher, QProcess, QTimer, pyqtSlot
+from PyQt6.QtCore import QFileSystemWatcher, QProcess, QTimer, Qt, pyqtSlot
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
-from PyQt6.QtGui import QIcon, QAction
+from PyQt6.QtGui import QAction, QColor, QIcon, QImage, QPainter, QPixmap
+
+# relative import when installed, plain import when run as pun/pun.py
+if __package__:
+    from . import sprites
+else:
+    import sprites
+
+def make_icon(canvas, state):
+    """Turns a sprite canvas into a QIcon with sharp pixmaps of all sizes."""
+    pixels = sprites.to_rgba(canvas, state)
+    image = QImage(sprites.SIZE, sprites.SIZE, QImage.Format.Format_ARGB32)
+    image.fill(Qt.GlobalColor.transparent)
+    for y, row in enumerate(pixels):
+        for x, rgba in enumerate(row):
+            if rgba[3]:
+                image.setPixelColor(x, y, QColor(*rgba))
+
+    icon = QIcon()
+    for size in ICON_SIZES:
+        scale = max(1, size // sprites.SIZE)
+        scaled = image.scaled(sprites.SIZE * scale, sprites.SIZE * scale,
+                              Qt.AspectRatioMode.IgnoreAspectRatio,
+                              Qt.TransformationMode.FastTransformation)
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        offset = (size - scaled.width()) // 2
+        painter.drawImage(offset, offset, scaled)
+        painter.end()
+        icon.addPixmap(pixmap)
+    return icon
 
 class UpdateableTrayIcon(QSystemTrayIcon):
     def __init__(self):
         super().__init__()
+        self.frames = []
+        self.durations = []
+        self.frame = 0
+        # shows the next frame of the current animation
+        self.animation_timer = QTimer(self)
+        self.animation_timer.setSingleShot(True)
+        self.animation_timer.timeout.connect(self.next_frame)
         # set icon to updating at start
         self.state_updating()
 
-    def update_icon(self, new_icon):
-        icon = QIcon(os.path.join(os.path.dirname(__file__), new_icon))
-        self.setIcon(icon)
+    def animate(self, state, count=0):
+        canvases, self.durations = sprites.animation(state, count)
+        self.frames = [make_icon(canvas, state) for canvas in canvases]
+        self.frame = -1
+        self.animation_timer.stop()
+        self.next_frame()
         self.setVisible(True)
 
+    @pyqtSlot()
+    def next_frame(self):
+        self.frame = (self.frame + 1) % len(self.frames)
+        self.setIcon(self.frames[self.frame])
+        if len(self.frames) > 1:
+            self.animation_timer.start(self.durations[self.frame])
+
     def state_up_to_date(self):
-        self.update_icon(ICON_UP_TO_DATE)
+        self.animate("up_to_date")
 
     def state_updating(self):
-        self.update_icon(ICON_UPDATING)
+        self.animate("checking")
 
-    def state_updates_available(self):
-        self.update_icon(ICON_UPDATES_AVAILABLE)
+    def state_updates_available(self, count):
+        self.animate("updates", count)
 
     def state_error(self):
-        self.update_icon(ICON_ERROR)
+        self.animate("error")
 
 class PacmanUpdateNotifier(QApplication):
     def __init__(self, args):
@@ -123,8 +169,9 @@ class PacmanUpdateNotifier(QApplication):
         self.timer.start()
 
     def terminate(self):
-        # stop the refresh timer
+        # stop the refresh timer and the animation
         self.timer.stop()
+        self.tray.animation_timer.stop()
         # stop watching for changes
         self.monitor_timer.stop()
         self.watcher.directoryChanged.disconnect()
@@ -158,7 +205,7 @@ class PacmanUpdateNotifier(QApplication):
         if exit_status == QProcess.ExitStatus.NormalExit and exit_code in (0, 2):
             count = len(output.splitlines())
             if count > 0:
-                self.tray.state_updates_available()
+                self.tray.state_updates_available(count)
                 self.tray.setToolTip("%i update%s available (%s)" % (count, "" if count == 1 else "s", now))
             else:
                 self.tray.state_up_to_date()

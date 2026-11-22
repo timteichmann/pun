@@ -19,7 +19,4 @@ Homepage = "https://github.com/timteichmann/pun/"
 pun = "pun.pun:main"
 
 [tool.setuptools]
-packages = ["pun", "pun.icons"]
-
-[tool.setuptools.package-data]
-"pun.icons" = ["*.png"]
+packages = ["pun"]

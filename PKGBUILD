@@ -26,5 +26,5 @@ package() {
 	cd pun-repo
 	python -m installer --destdir="$pkgdir" dist/*.whl
 	install -Dm644 pun.desktop "$pkgdir/usr/share/applications/pun.desktop"
-	install -Dm644 pun/icons/pun_green.png "$pkgdir/usr/share/pixmaps/pun.png"
+	install -Dm644 pun.png "$pkgdir/usr/share/pixmaps/pun.png"
 }

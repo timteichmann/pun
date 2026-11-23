@@ -51,7 +51,9 @@ def installed_terminals():
 
 def update_argv(command, keep_open):
     """Returns the arguments that run the update command in a shell."""
-    script = command
+    # echo the command like a shell prompt, so the user sees what asks for
+    # their password before sudo does
+    script = "printf '%s\\n' " + shlex.quote("$ " + command) + "\n" + command
     if keep_open:
         # on separate lines, so a trailing comment or "&" can't swallow them
         script += "\necho\nprintf 'Press Enter to close... '\nread -r _"

@@ -34,6 +34,14 @@ MONITOR_DELAY = 5
 
 REFRESH_INTERVAL = 600
 
+# after a failed check, retry after this many seconds; the delay doubles with
+# every further failure up to REFRESH_INTERVAL and resets after a success
+RETRY_DELAY = 15
+
+# keep showing the checking icon for this many failures in a row before
+# showing the error icon, e.g. while the network comes up after boot
+QUIET_FAILURES = 2
+
 # icon sizes to provide; the pixel art is scaled by whole numbers and centred,
 # so it stays sharp at every size
 ICON_SIZES = [16, 20, 22, 24, 32, 40, 44, 48, 64, 96, 128, 256]
@@ -121,11 +129,18 @@ class PacmanUpdateNotifier(QApplication):
         super().__init__(args)
         # number of refreshes
         self.n_refresh = 0
+        # number of failed checks in a row
+        self.failures = 0
 
         # timer for regular refreshes (runs in the Qt event loop)
         self.timer = QTimer(self)
         self.timer.setInterval(REFRESH_INTERVAL * 1000)
         self.timer.timeout.connect(self.update)
+
+        # timer for retrying sooner after a failed check
+        self.retry_timer = QTimer(self)
+        self.retry_timer.setSingleShot(True)
+        self.retry_timer.timeout.connect(self.update)
 
         # tray icon
         self.tray = UpdateableTrayIcon()
@@ -171,6 +186,7 @@ class PacmanUpdateNotifier(QApplication):
     def terminate(self):
         # stop the refresh timer and the animation
         self.timer.stop()
+        self.retry_timer.stop()
         self.tray.animation_timer.stop()
         # stop watching for changes
         self.monitor_timer.stop()
@@ -189,6 +205,8 @@ class PacmanUpdateNotifier(QApplication):
             self.refresh_pending = True
             return
 
+        # this check replaces a scheduled retry
+        self.retry_timer.stop()
         self.n_refresh += 1
         self.tray.setToolTip("Refreshing...")
         self.update_action.setText("Refreshing...")
@@ -203,6 +221,7 @@ class PacmanUpdateNotifier(QApplication):
         # checkupdates exit codes: 0 = updates available, 2 = no updates,
         # anything else = failure
         if exit_status == QProcess.ExitStatus.NormalExit and exit_code in (0, 2):
+            self.failures = 0
             count = len(output.splitlines())
             if count > 0:
                 self.tray.state_updates_available(count)
@@ -223,8 +242,15 @@ class PacmanUpdateNotifier(QApplication):
 
     def check_failed(self):
         now = datetime.datetime.now().strftime("%H:%M:%S")
-        self.tray.state_error()
-        self.tray.setToolTip("Last refresh failed (%s)" % now)
+        self.failures += 1
+        delay = min(RETRY_DELAY * 2 ** (self.failures - 1), REFRESH_INTERVAL)
+        self.retry_timer.start(delay * 1000)
+        if self.failures <= QUIET_FAILURES:
+            # likely transient (e.g. no network yet), keep the checking icon
+            self.tray.setToolTip("Refresh failed, retrying in %i s (%s)" % (delay, now))
+        else:
+            self.tray.state_error()
+            self.tray.setToolTip("Last refresh failed, retrying in %i s (%s)" % (delay, now))
         self.check_done()
 
     def check_done(self):

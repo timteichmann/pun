@@ -14,7 +14,10 @@ animated pixel-art creature that eats packages:
 pun uses `checkupdates` from `pacman-contrib`, so it never touches the
 system's sync databases. It checks every 10 minutes, on demand via the
 *Refresh* menu entry, and a few seconds after pacman has installed, upgraded
-or removed packages.
+or removed packages. After a failed check, for example while the network is
+not up yet after boot, it retries after 15 seconds, doubling the delay with
+every further failure, and only shows the grey icon if the first two retries
+fail too.
 
 ## Requirements
 

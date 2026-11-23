@@ -19,6 +19,26 @@ not up yet after boot, it retries after 15 seconds, doubling the delay with
 every further failure, and only shows the grey icon if the first two retries
 fail too.
 
+## Updating the system
+
+Click the tray icon, or choose *Update System* from its menu, to open a
+terminal running `sudo pacman -Syu`. Some trays open the menu on every click;
+there only the menu entry works. Once pacman is done, pun checks again on its
+own.
+
+In *Settings...* you can choose:
+
+- the terminal: *Automatic* uses `xdg-terminal-exec` if installed, otherwise
+  `$TERMINAL`, otherwise the first installed terminal pun knows. You can also
+  enter a terminal with extra arguments, e.g. `konsole --profile Updates`, or
+  any command line with `{cmd}` where the update command goes, e.g.
+  `myterm --run {cmd}`.
+- the update command, e.g. `paru` to include AUR packages
+- whether the terminal stays open after the update
+- whether clicking the tray icon starts the update
+
+The settings are stored in `~/.config/pun/pun.conf`.
+
 ## Requirements
 
 - Python 3.9 or newer

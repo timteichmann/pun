@@ -46,18 +46,21 @@ QUIET_FAILURES = 2
 # so it stays sharp at every size
 ICON_SIZES = [16, 20, 22, 24, 32, 40, 44, 48, 64, 96, 128, 256]
 
+import os
 import sys
 import datetime
 
 from PyQt6.QtCore import QFileSystemWatcher, QProcess, QTimer, Qt, pyqtSlot
-from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
+from PyQt6.QtWidgets import QApplication, QDialog, QSystemTrayIcon, QMenu
 from PyQt6.QtGui import QAction, QColor, QIcon, QImage, QPainter, QPixmap
 
 # relative import when installed, plain import when run as pun/pun.py
 if __package__:
-    from . import sprites
+    from . import settings, sprites
+    from .terminal import launch_argv
 else:
-    import sprites
+    import settings, sprites
+    from terminal import launch_argv
 
 def make_icon(canvas, state):
     """Turns a sprite canvas into a QIcon with sharp pixmaps of all sizes."""
@@ -127,6 +130,10 @@ class UpdateableTrayIcon(QSystemTrayIcon):
 class PacmanUpdateNotifier(QApplication):
     def __init__(self, args):
         super().__init__(args)
+        # the settings dialog is the only window; closing it must not quit
+        self.setQuitOnLastWindowClosed(False)
+        self.settings = settings.load()
+        self.settings_dialog = None
         # number of refreshes
         self.n_refresh = 0
         # number of failed checks in a row
@@ -150,9 +157,19 @@ class PacmanUpdateNotifier(QApplication):
         # menu
         self.menu = QMenu()
         # add default actions
+        self.upgrade_action = QAction("Update System")
+        self.menu.addAction(self.upgrade_action)
+        self.upgrade_action.triggered.connect(self.start_upgrade)
+
         self.update_action = QAction("Refresh")
         self.menu.addAction(self.update_action)
         self.update_action.triggered.connect(self.update)
+
+        self.menu.addSeparator()
+
+        self.settings_action = QAction("Settings...")
+        self.menu.addAction(self.settings_action)
+        self.settings_action.triggered.connect(self.show_settings)
 
         self.menu.addSeparator()
 
@@ -161,6 +178,7 @@ class PacmanUpdateNotifier(QApplication):
         self.quit_action.triggered.connect(self.terminate)
 
         self.tray.setContextMenu(self.menu)
+        self.tray.activated.connect(self.tray_activated)
 
         # monitor changes in specified directories; every change restarts the
         # delay timer, so the refresh happens once the changes have stopped
@@ -190,6 +208,8 @@ class PacmanUpdateNotifier(QApplication):
         self.tray.animation_timer.stop()
         # stop watching for changes
         self.monitor_timer.stop()
+        if self.settings_dialog is not None:
+            self.settings_dialog.close()
         self.watcher.directoryChanged.disconnect()
         # abort a running check without scheduling another one
         self.refresh_pending = False
@@ -197,6 +217,46 @@ class PacmanUpdateNotifier(QApplication):
             self.process.kill()
             self.process.waitForFinished(1000)
         self.quit()
+
+    def tray_activated(self, reason):
+        # trays that open the menu on every click never report a Trigger
+        if reason == QSystemTrayIcon.ActivationReason.Trigger and self.settings["click_to_update"]:
+            self.start_upgrade()
+
+    @pyqtSlot()
+    def start_upgrade(self):
+        # the terminal runs detached; pun refreshes when pacman changes the
+        # local package database
+        try:
+            argv = launch_argv(self.settings)
+        except ValueError as error:
+            self.upgrade_failed(str(error))
+            return
+        started = QProcess.startDetached(argv[0], argv[1:], os.path.expanduser("~"))
+        if isinstance(started, tuple):
+            started = started[0]
+        if not started:
+            self.upgrade_failed("Could not start \"%s\"." % argv[0])
+
+    def upgrade_failed(self, message):
+        self.tray.showMessage("pun", message, QSystemTrayIcon.MessageIcon.Warning)
+
+    @pyqtSlot()
+    def show_settings(self):
+        if self.settings_dialog is None:
+            self.settings_dialog = settings.SettingsDialog(self.settings)
+            self.settings_dialog.finished.connect(self.settings_closed)
+        self.settings_dialog.show()
+        self.settings_dialog.raise_()
+        self.settings_dialog.activateWindow()
+
+    def settings_closed(self, result):
+        if result == QDialog.DialogCode.Accepted.value:
+            self.settings = self.settings_dialog.settings
+            settings.save(self.settings)
+        # build a fresh dialog next time, showing the current settings
+        self.settings_dialog.deleteLater()
+        self.settings_dialog = None
 
     @pyqtSlot()
     def update(self):
